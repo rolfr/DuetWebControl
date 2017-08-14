@@ -7,7 +7,7 @@
  */
 
 
-var notificationOptions = {
+var jsNotificationOptions = {
 	animate: {
 		enter: 'animated fadeInDown',
 		exit: 'animated fadeOutDown'
@@ -29,7 +29,101 @@ var notificationOptions = {
 };
 
 // Apply custom options for JS plugin
-$.notifyDefaults(notificationOptions);
+$.notifyDefaults(jsNotificationOptions);
+
+function showDownloadMessage() {
+	var notifySettings = { icon: "glyphicon glyphicon-compressed",
+		title: "<strong>" + T("Downloading Files") + "</strong><br/><br/>",
+		message: T("Please wait while the selected files are being downloaded...")
+	};
+	var options = { type: "info",
+		allow_dismiss: false,
+		delay: -1,
+		showProgressbar: true
+	};
+	return $.notify(notifySettings, options);
+}
+
+function showHaltMessage() {
+	// Display backdrop and hide it when ready
+	$("#modal_backdrop").modal("show");
+	setTimeout(function() {
+		$("#modal_backdrop").modal("hide");
+	}, settings.haltedReconnectDelay);
+
+	// Display notification
+	var notifySettings = { icon: "glyphicon glyphicon-flash",
+		title: "<strong>" + T("Emergency STOP") + "</strong><br/><br/>",
+		message: T("Please wait while the firmware is restarting..."),
+		progress: settings.haltedReconnectDelay / 100,
+	};
+	var options = { type: "warning",
+		allow_dismiss: false,
+		delay: settings.haltedReconnectDelay,
+		timeout: 1000,
+		showProgressbar: true
+	};
+	var notification = $.notify(notifySettings, options);
+	$(notification.$ele).css("z-index", 9999);
+}
+
+function showMessage(type, title, message, timeout, allowDismiss) {
+	// Set default arguments
+	if (timeout == undefined) { timeout = settings.notificationTimeout; }
+	if (allowDismiss == undefined) { allowDismiss = true; }
+
+	// Check if an HTML5 notification shall be displayed
+	if (document.hidden && settings.useHtmlNotifications) {
+		// HTML5 notifications expect plain strings. Remove potential styles first
+		if (title.indexOf("<") != -1) { title = $("<span>" + title + "</span>").text(); }
+		if (message.indexOf("<") != -1) { message = $("<span>" + message + "</span>").text(); }
+
+		// Create new notification and display it
+		var options = {
+			body: message,
+			icon: "favicon.ico",
+			dir : "ltr",
+			requireInteraction: allowDismiss
+		};
+		var notification = new Notification(title, options);
+		if (allowDismiss) { notification.onclick = function() { this.close(); }; }
+		if (timeout > 0) { setTimeout(function() { notification.close(); }, timeout); }
+		return notification;
+	}
+
+	// Otherwise display a JQuery notification. Find a suitable icon first
+	var icon = "glyphicon glyphicon-info-sign";
+	if (type == "warning") {
+		icon = "glyphicon glyphicon-warning-sign";
+	} else if (type == "danger") {
+		icon = "glyphicon glyphicon-exclamation-sign";
+	}
+
+	// Check if the title can be displayed as bold text
+	if (title != "")
+	{
+		if (title.indexOf("<strong>") == -1)
+		{
+			title = "<strong>" + title + "</strong>";
+		}
+		title += "<br/><br/>";
+	}
+
+	// Show the notification
+	var notifySettings = { icon: icon,
+		title: title,
+		message: message};
+	var options = { type: type,
+		allow_dismiss: (allowDismiss == undefined) ? true : allowDismiss,
+		delay: (timeout == undefined) ? settings.notificationTimeout : timeout };
+	var notification = $.notify(notifySettings, options);
+	if (allowDismiss == undefined || allowDismiss) {
+		$(notification.$ele).click(function() {
+			notification.close();
+		});
+	}
+	return notification;
+}
 
 function showUpdateMessage(type, customTimeout) {
 	// Determine the message and timespan for the notification
@@ -87,54 +181,3 @@ function showUpdateMessage(type, customTimeout) {
 	return notification;
 }
 
-function showHaltMessage() {
-	// Display backdrop and hide it when ready
-	$("#modal_backdrop").modal("show");
-	setTimeout(function() {
-		$("#modal_backdrop").modal("hide");
-	}, settings.haltedReconnectDelay);
-
-	// Display notification
-	var notifySettings = { icon: "glyphicon glyphicon-flash",
-		title: "<strong>" + T("Emergency STOP") + "</strong><br/><br/>",
-		message: T("Please wait while the firmware is restarting..."),
-		progress: settings.haltedReconnectDelay / 100,
-	};
-	var options = { type: "warning",
-		allow_dismiss: false,
-		delay: settings.haltedReconnectDelay,
-		timeout: 1000,
-		showProgressbar: true
-	};
-	var notification = $.notify(notifySettings, options);
-	$(notification.$ele).css("z-index", 9999);
-}
-
-function showMessage(type, title, message, timeout, allowDismiss) {
-	// Find a suitable icon
-	var icon = "glyphicon glyphicon-info-sign";
-	if (type == "warning") {
-		icon = "glyphicon glyphicon-warning-sign";
-	} else if (type == "danger") {
-		icon = "glyphicon glyphicon-exclamation-sign";
-	}
-
-	// Check if the title can be displayed as bold text
-	if (title != "")
-	{
-		if (title.indexOf("<strong>") == -1)
-		{
-			title = "<strong>" + title + "</strong>";
-		}
-		title += "<br/><br/>";
-	}
-
-	// Show the notification
-	var notifySettings = { icon: "glyphicon glyphicon-" + icon,
-		title: title,
-		message: message};
-	var options = { type: type,
-		allow_dismiss: (allowDismiss == undefined) ? true : allowDismiss,
-		delay: (timeout == undefined) ? settings.notificationTimeout : timeout };
-	return $.notify(notifySettings, options);
-}
