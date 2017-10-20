@@ -279,13 +279,17 @@ label {
 	height: 200px;
 }
 
-.extr-1, .extr-2, .extr-3, .extr-4, .extr-5, .extr-6 {
-	white-space: nowrap;
+#div_tools_heaters input[type="number"] {
+	min-width: 50px;
 }
 
 #div_temp_chart {
 	padding-left: 0px;
 	padding-right: 0px;
+}
+
+.extr-1, .extr-2, .extr-3, .extr-4, .extr-5, .extr-6 {
+	white-space: nowrap;
 }
 
 .input-td {
@@ -1283,9 +1287,14 @@ label[for="dropdown_language"] {
 	text-align: center;
 }
 
+#h3_messagebox {
+	margin-bottom: 20px;
+}
+
+#div_x_controls,
+#div_y_controls,
 #div_z_controls {
-	margin-top: 30px;
-	margin-bottom: 9px;
+	margin-top: 20px;
 }
 
 

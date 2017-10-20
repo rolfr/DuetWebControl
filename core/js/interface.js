@@ -9,7 +9,7 @@
 
 var machineName = "Duet Web Control";
 
-var maxAxes = 9, maxExtruders = 6, maxDrives = 9, maxHeaters = 8, maxTempSensors = 10, maxFans = 3;
+var maxAxes = 9, maxExtruders = 6, maxDrives = 11, maxHeaters = 8, maxTempSensors = 10, maxFans = 3;
 var axisNames = ["X", "Y", "Z", "U", "V", "W", "A", "B", "C"];
 var probeSlowDownColor = "#FFFFE0", probeTriggerColor = "#FFF0F0";
 
@@ -77,6 +77,7 @@ $(document).ready(function() {
 
 	loadSettings();
 	loadFileCache();
+	loadTableSorting();
 
 	// Check if this browser is supported and display a message if it is not
 	var userAgent = navigator.userAgent.toLowerCase();
@@ -231,13 +232,6 @@ function updateGui() {
 		});
 		updateFixedToolTemps(toolRows);
 		toolRows.prependTo("#table_tools > tbody");
-
-		// Underline current tool
-		if (lastStatusResponse != undefined && lastStatusResponse.currentTool >= 0) {
-			$("#table_tools > tbody > tr").each(function() {
-				$(this).find("th:first-child > a > span:first-child").css("text-decoration", ($(this).data("tool") == lastStatusResponse.currentTool) ? "underline" : "");
-			});
-		}
 	} else {
 		var toolRows = $(initialTools);
 		updateFixedToolTemps(toolRows);
@@ -470,6 +464,7 @@ function resetGui() {
 	updateSysFiles();
 
 	// Modal dialogs
+	closeMessageBox();
 	$(".modal").modal("hide");
 
 	// Upload prompt
@@ -909,21 +904,19 @@ $("#btn_clear_log").click(function(e) {
 $("#btn_extrude").click(function(e) {
 	var feedrate = $("#panel_extrude input[name=feedrate]:checked").val() * 60;
 	var amount = $("#panel_extrude input[name=feed]:checked").val();
+	var drive = $('input[name="extruder"]:checked').val();
 
-	if (lastStatusResponse != undefined && !$("#div_extrude").hasClass("hidden")) {
-		var drive = $('input[name="extruder"]:checked').val();
-		if (drive != "all") {
-			var amounts = [];
-			var toolDrives = getTool(lastStatusResponse.currentTool).drives;
-			for(var i = 0; i < toolDrives.length; i++) {
-				if (drive == toolDrives[i]) {
-					amounts.push(amount);
-				} else {
-					amounts.push("0");
-				}
+	if (drive != "mix" && lastStatusResponse != undefined && !$("#div_extrude").hasClass("hidden")) {
+		var amounts = [];
+		var toolDrives = getTool(lastStatusResponse.currentTool).drives;
+		for(var i = 0; i < toolDrives.length; i++) {
+			if (drive == "all" || drive == toolDrives[i]) {
+				amounts.push(amount);
+			} else {
+				amounts.push("0");
 			}
-			amount = amounts.join(":");
 		}
+		amount = amounts.join(":");
 	}
 
 	sendGCode("M120\nM83\nG1 E" + amount + " F" + feedrate + "\nM121");
@@ -932,21 +925,19 @@ $("#btn_extrude").click(function(e) {
 $("#btn_retract").click(function(e) {
 	var feedrate = $("#panel_extrude input[name=feedrate]:checked").val() * 60;
 	var amount = -$("#panel_extrude input[name=feed]:checked").val();
+	var drive = $('input[name="extruder"]:checked').val();
 
-	if (lastStatusResponse != undefined && !$("#div_extrude").hasClass("hidden")) {
-		var drive = $('input[name="extruder"]:checked').val();
-		if (drive != "all") {
-			var amounts = [];
-			var toolDrives = getTool(lastStatusResponse.currentTool).drives;
-			for(var i = 0; i < toolDrives.length; i++) {
-				if (drive == toolDrives[i]) {
-					amounts.push(amount);
-				} else {
-					amounts.push("0");
-				}
+	if (drive != "mix" && lastStatusResponse != undefined && !$("#div_extrude").hasClass("hidden")) {
+		var amounts = [];
+		var toolDrives = getTool(lastStatusResponse.currentTool).drives;
+		for(var i = 0; i < toolDrives.length; i++) {
+			if (drive == "all" || drive == toolDrives[i]) {
+				amounts.push(amount);
+			} else {
+				amounts.push("0");
 			}
-			amount = amounts.join(":");
 		}
+		amount = amounts.join(":");
 	}
 
 	sendGCode("M120\nM83\nG1 E" + amount + " F" + feedrate + "\nM121");
@@ -978,7 +969,8 @@ $(".btn-home-x").resize(function() {
 	}
 }).resize();
 
-$("#mobile_home_buttons button, #btn_homeall, #mobile_extra_home_buttons, .table-move a, #div_z_controls button[data-z]").click(function(e) {
+$("#mobile_home_buttons button, #btn_homeall, #mobile_extra_home_buttons, .table-move a, " +
+	"#div_x_controls button[data-x], #div_y_controls button[data-y], #div_z_controls button[data-z]").click(function(e) {
 	if ($(this).data("home") != undefined) {
 		if ($(this).data("home") == "all") {
 			sendGCode("G28");
@@ -1004,6 +996,15 @@ $("#mobile_home_buttons button, #btn_homeall, #mobile_extra_home_buttons, .table
 		}
 		if ($(this).data("w") != undefined) {
 			moveString += " W" + $(this).data("w");
+		}
+		if ($(this).data("a") != undefined) {
+			moveString += " A" + $(this).data("a");
+		}
+		if ($(this).data("b") != undefined) {
+			moveString += " B" + $(this).data("b");
+		}
+		if ($(this).data("c") != undefined) {
+			moveString += " C" + $(this).data("c");
 		}
 		moveString += " F" + settings.moveFeedrate + "\nM121";
 		sendGCode(moveString);
@@ -1501,6 +1502,30 @@ function setAxesHomed(axes) {
 			$(".btn-home-w").removeClass("btn-primary").addClass("btn-warning");
 		}
 	}
+	if (axes.length > 6) {
+		if (axes[6]) {
+			$(".btn-home-a").removeClass("btn-warning").addClass("btn-primary");
+		} else {
+			unhomedAxes += ", A";
+			$(".btn-home-a").removeClass("btn-primary").addClass("btn-warning");
+		}
+	}
+	if (axes.length > 7) {
+		if (axes[7]) {
+			$(".btn-home-b").removeClass("btn-warning").addClass("btn-primary");
+		} else {
+			unhomedAxes += ", B";
+			$(".btn-home-b").removeClass("btn-primary").addClass("btn-warning");
+		}
+	}
+	if (axes.length > 8) {
+		if (axes[8]) {
+			$(".btn-home-c").removeClass("btn-warning").addClass("btn-primary");
+		} else {
+			unhomedAxes += ", C";
+			$(".btn-home-c").removeClass("btn-primary").addClass("btn-warning");
+		}
+	}
 
 	// Set home alert visibility
 	if (unhomedAxes == "") {
@@ -1521,24 +1546,22 @@ function setATXPower(value) {
 }
 
 function setBoardType(type) {
-	var isWiFi = false;
-	var show7Extruders = false, show7Heaters = false;
+	boardType = type;
 
+	var isWiFi, isDuetNG;
 	if (type.indexOf("duetwifi") == 0) {
 		firmwareFileName = "DuetWiFiFirmware";
-		isWiFi = show7Extruders = show7Heaters = true;
+		isWiFi = isDuetNG = true;
 	} else if (type.indexOf("duetethernet") == 0) {
 		firmwareFileName = "DuetEthernetFirmware";
-		show7Extruders = show7Heaters = true;
+		isWiFi = false;
+		isDuetNG = true;
 	} else {
 		firmwareFileName = "RepRapFirmware";
+		isWiFi = isDuetNG = false;
 	}
-
-	$(".7-extruders").toggleClass("hidden", !show7Extruders);
-	$(".7-heaters").toggleClass("hidden", !show7Heaters);
+	$(".duet-ng").toggleClass("hidden", !isDuetNG);
 	$(".wifi-setting").toggleClass("hidden", !isWiFi);
-
-	boardType = type;
 }
 
 function setCurrentTemperature(heater, temperature) {
